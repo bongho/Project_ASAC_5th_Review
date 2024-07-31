@@ -39,25 +39,26 @@ with col1:
 
 # 두 번째 컬럼에 키워드 추가
 with col2:
-    st.subheader("Keywords")
-    st.write("Good: Quality, Service, Atmosphere")
-    st.write("Bad: Location, Price, Accessibility")
+    st.subheader("Good")
+    st.write("Tasty Pasta, Kind Waitress, Cozy Atmosphere")
+    st.subheader("Bad")
+    st.write("Awful Location, High Cost, No Parking")
 
 # 데이터 생성 (임시 데이터)
 np.random.seed(1)
 data = pd.DataFrame({
-    'Store': np.random.choice(['Store A', 'Store B', 'Store C'], 100),
-    'Rating': np.random.randint(1, 6, 100),
-    'Reviewer Type': np.random.choice(['Regular', 'VIP', 'First-time'], 100),
+    'Reviewer': np.random.choice(['Hoon', 'Hyeji', 'Eunji', 'Sehee'], 100),
+    'Topic': np.random.randint(1, 6, 100),
+    'Reviewer Type': np.random.choice(['Local', 'Tourist', 'etc'], 100),
     'Review Text': ['Review ' + str(i) for i in range(100)]
 })
 
-# 평점 필터
-rating_filter = st.multiselect('Select rating(s)', options=range(1, 6), default=[5])
-filtered_data = data[data['Rating'].isin(rating_filter)]
+# 토픽 필터
+rating_filter = st.multiselect('Select Topic(s)', options=range(1, 6), default=[5])
+filtered_data = data[data['Topic'].isin(rating_filter)]
 
 # 리뷰어 유형 필터
-reviewer_type_filter = st.multiselect('Select reviewer type(s)', options=['Regular', 'VIP', 'First-time'], default=['VIP'])
+reviewer_type_filter = st.multiselect('Select reviewer type(s)', options=['Local', 'Tourist', 'etc'], default=['Local'])
 filtered_data = filtered_data[filtered_data['Reviewer Type'].isin(reviewer_type_filter)]
 
 # 결과 표시
