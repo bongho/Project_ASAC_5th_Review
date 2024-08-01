@@ -12,19 +12,19 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 사이드바에 타이틀 추가
-st.sidebar.title("Sidebar Controls")
+# # 사이드바에 타이틀 추가
+# st.sidebar.title("Sidebar Controls")
 
-# 사이드바에 선택 박스 추가
-option = st.sidebar.selectbox(
-    'Which number do you like best?',
-     np.arange(1, 11))
+# # 사이드바에 선택 박스 추가
+# option = st.sidebar.selectbox(
+#     'Which number do you like best?',
+#      np.arange(1, 11))
 
-# # 사이드바에 슬라이더 추가
-slider_val = st.sidebar.slider("Select a range of values", 0.0, 100.0, (25.0, 75.0))
+# # # 사이드바에 슬라이더 추가
+# slider_val = st.sidebar.slider("Select a range of values", 0.0, 100.0, (25.0, 75.0))
 
-# # 사이드바에 체크박스 추가
-checkbox_val = st.sidebar.checkbox("Check me for more options")
+# # # 사이드바에 체크박스 추가
+# checkbox_val = st.sidebar.checkbox("Check me for more options")
 
 # 페이지 타이틀 설정
 st.title("Store A")
@@ -40,7 +40,9 @@ with col1:
 # 두 번째 컬럼에 키워드 추가
 with col2:
     st.subheader("Good")
-    st.write("Tasty Pasta, Kind Waitress, Cozy Atmosphere")
+    st.write("Tasty Pasta")
+    st.write("Kind Waitress")
+    st.write("Cozy Atmosphere")
     st.subheader("Bad")
     st.write("Awful Location, High Cost, No Parking")
 
