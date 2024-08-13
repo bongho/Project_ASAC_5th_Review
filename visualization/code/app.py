@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from streamlit_folium import folium_static
+import matplotlib.pyplot as plt
 import folium
 
 ## DB 관련 함수 import 
@@ -28,21 +29,67 @@ def show_main():
 
 
 ### show result 함수 구성요소 
-## 지도 표시
-def display_map(business_info):
-    map_center = [business_info[1], business_info[2]]
-    m = folium.Map(location=map_center, zoom_start=15, tiles='cartodbpositron', width='90%', height=200)
-    folium.Marker(location=map_center, popup=f"{business_info[0]}, {business_info[3]}", tooltip="Click for more info").add_to(m)
-    folium_static(m, height=150)
+# ## 지도 표시
+# def display_map(business_info):
+#     map_center = [business_info[1], business_info[2]]
+#     m = folium.Map(location=map_center, zoom_start=15, tiles='cartodbpositron', width='90%', height=200)
+#     folium.Marker(location=map_center, popup=f"{business_info[0]}, {business_info[3]}", tooltip="Click for more info").add_to(m)
+#     folium_static(m, height=150)
 
 
+## 대분류 긍/부정 그래프
+def display_bar_chart(business_info):
+    # 임시 데이터 생성 (실제 환경에서는 business_info 데이터 사용)
+    data = {
+        'Category': ['Food', 'Service', 'Facilities', 'Price', 'Atmosphere', 'Others'],
+        'Score': [0.8, -0.25, 0.6, -0.35, 0.7, -0.4],
+        'Type': ['Positive', 'Negative', 'Positive', 'Negative', 'Positive', 'Negative']
+    }
+    df = pd.DataFrame(data)
+
+    # 긍정 및 부정 점수를 각각 정렬(긍정->내림차순 / 부정->오름차순)
+    df_positive = df[df['Type'] == 'Positive'].sort_values(by='Score', ascending=False)
+    df_negative = df[df['Type'] == 'Negative'].sort_values(by='Score', ascending=False)
+
+    # 데이터프레임 재결합
+    df_sorted = pd.concat([df_positive, df_negative])
+
+    # 카테고리별 긍/부정 점수 시각화
+    fig, ax = plt.subplots(figsize=(10, 1.5))  # 그래프 크기 조절 (너비, 높이)
+    color_map = {'Positive': 'skyblue', 'Negative': 'orange'}
+
+    # 카테고리별로 바 차트 그리기 및 점수 표시
+    for index, row in df_sorted.iterrows():
+        bar = ax.bar(row['Category'], row['Score'], color=color_map[row['Type']], width=0.4)
+        # 각 막대 위에 점수 표시
+        ax.text(bar[0].get_x() + bar[0].get_width() / 2, 
+                bar[0].get_height(), 
+                f'{row["Score"]:.2f}', 
+                ha='center', 
+                va='bottom' if row['Score'] < 0 else 'bottom', 
+                color='black')
+    # 중앙선 추가 및 바깥선 제거
+    ax.axhline(0, color='lightgrey', linewidth=0.8)
+    ax.spines['top'].set_visible(False)  # 상단 바깥선 제거
+    ax.spines['right'].set_visible(False)  # 우측 바깥선 제거
+    ax.spines['left'].set_visible(False)  # 좌측 바깥선 제거
+    ax.spines['bottom'].set_visible(False)  # 하단 바깥선 제거
+
+    ax.set_ylabel('Scores')
+    ax.set_title('Category Scores')
+
+    # 스트림릿으로 플롯 출력
+    st.pyplot(fig)
+
+    
 ## 가게 정보 표시
 def display_store_info(business_info):
     col1, col2 = st.columns([1.2, 1.8])
     with col1:
         st.image("assets/sample_img.jpg", caption='Store Image', width=300)
     with col2:
-        display_map(business_info)
+        #display_map(business_info)
+        display_bar_chart(business_info)
         display_additional_info(business_info)
 
 
