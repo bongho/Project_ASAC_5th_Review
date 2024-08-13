@@ -23,9 +23,21 @@ def get_reviews_for_business(business_id):
     c.execute("SELECT text, user_id, business_id, stars, date FROM review WHERE business_id =?",(business_id,))
     return c.fetchall()
 
-## user table 정보 불러오기
-def get_users_for_reiew(user_id):
+# ## user table 정보 불러오기
+# def get_users_for_review(user_id):
+#     conn = get_connection()
+#     c = conn.cursor()
+#     c.execute("SELECT user_id, name, average_stars_user, most_visited_region FROM user WHERE user_id=?",(user_id,))
+#     return c.fetchone()
+
+def get_users_for_review(user_ids):
     conn = get_connection()
-    c = conn.cursor()
-    c.execute("SELECT name, most_visited_region FROM user WHERE user_id=?",(user_id,))
-    return c.fetchone()
+    try:
+        c = conn.cursor()
+        query = "SELECT user_id, average_stars_user, name, most_visited_region FROM user WHERE user_id IN ({})"
+        format_strings = ','.join(['?']*len(user_ids))  # user_ids 개수만큼 '?'를 생성
+        query = query.format(format_strings)
+        c.execute(query, user_ids)
+        return c.fetchall()
+    finally:
+        conn.close()
