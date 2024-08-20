@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import folium
 
 ## DB 관련 함수 import 
-from db_functions import find_business_in_db, get_reviews_for_business, get_users_for_review
+from db_functions import find_business_in_db, get_reviews_for_business, get_users_for_review, print_review_table_schema
 
 
 ## 페이지 설정 함수
@@ -39,13 +39,22 @@ def show_main():
 
 ## 대분류 긍/부정 그래프
 def display_bar_chart(business_info):
-    # 임시 데이터 생성 (실제 환경에서는 business_info 데이터 사용)
+    # namedtuple에서 점수 정보를 가져옴
     data = {
-        'Category': ['Food', 'Service', 'Facilities', 'Price', 'Atmosphere', 'Others'],
-        'Score': [0.8, -0.25, 0.6, -0.35, 0.7, -0.4],
-        'Type': ['Positive', 'Negative', 'Positive', 'Negative', 'Positive', 'Negative']
+        'Category': ['Service', 'Others', 'Food', 'Price', 'Atmosphere', 'Facilities'],
+        'Score': [
+            business_info.service_score,
+            business_info.others_score,
+            business_info.food_score,
+            business_info.price_score,
+            business_info.atmosphere_score,
+            business_info.facility_score
+        ]
     }
+
+    # 점수에 따라 Positive/Negative 분류
     df = pd.DataFrame(data)
+    df['Type'] = df['Score'].apply(lambda x: 'Positive' if x > 0 else 'Negative')
 
     # 긍정 및 부정 점수를 각각 정렬(긍정->내림차순 / 부정->오름차순)
     df_positive = df[df['Type'] == 'Positive'].sort_values(by='Score', ascending=False)
@@ -55,7 +64,7 @@ def display_bar_chart(business_info):
     df_sorted = pd.concat([df_positive, df_negative])
 
     # 카테고리별 긍/부정 점수 시각화
-    fig, ax = plt.subplots(figsize=(10, 1.5))  # 그래프 크기 조절 (너비, 높이)
+    fig, ax = plt.subplots(figsize=(10, 4))  # 그래프 크기 조절 (너비, 높이)
     color_map = {'Positive': 'skyblue', 'Negative': 'orange'}
 
     # 카테고리별로 바 차트 그리기 및 점수 표시
@@ -68,6 +77,7 @@ def display_bar_chart(business_info):
                 ha='center', 
                 va='bottom' if row['Score'] < 0 else 'bottom', 
                 color='black')
+    
     # 중앙선 추가 및 바깥선 제거
     ax.axhline(0, color='lightgrey', linewidth=0.8)
     ax.spines['top'].set_visible(False)  # 상단 바깥선 제거
@@ -96,52 +106,131 @@ def display_store_info(business_info):
 ## 가게 추가 정보 표시
 def display_additional_info(business_info):
     with st.container(height=142):
-        category_string = ' > '.join(eval(business_info[5])) if isinstance(business_info[5], str) else ' > '.join(business_info[5])
-        st.write("⭐", business_info[8])
+        category_string = ' > '.join(eval(business_info.category)) if isinstance(business_info.category, str) else ' > '.join(business_info.category)
+        st.write("⭐", round(business_info.average_stars_biz, 2))
         st.write("🍽️", category_string)
-        st.write("🏡", f"{business_info[3]}, {business_info[6]}")
+        st.write("🏡", f"{business_info.address}, {business_info.region}")
 
 
 ## 리뷰 요약 표시
 def display_review_keywords(business_info):
     # @@ 예외처리) 가게 리뷰가 10개 미만인 경우 - 수집중 안내
-    if business_info[7] < 10:
+    if business_info.review_count_biz < 10:
         st.info("가게 리뷰 수집중입니다.")
         return
-    
+
+    # 긍정 및 부정 키워드를 저장할 리스트
+    good_keywords = []
+    bad_keywords = []
+
+    # 각 점수에 따라 긍정/부정 키워드 분류 및 저장
+    if business_info.service_score != 0:
+        score_keyword_pair = (business_info.service_score, business_info.service_keyword)
+        if business_info.service_score > 0:
+            good_keywords.append(score_keyword_pair)
+        else:
+            bad_keywords.append(score_keyword_pair)
+
+    if business_info.others_score != 0:
+        score_keyword_pair = (business_info.others_score, business_info.others_keyword)
+        if business_info.others_score > 0:
+            good_keywords.append(score_keyword_pair)
+        else:
+            bad_keywords.append(score_keyword_pair)
+
+    if business_info.food_score != 0:
+        score_keyword_pair = (business_info.food_score, business_info.food_keyword)
+        if business_info.food_score > 0:
+            good_keywords.append(score_keyword_pair)
+        else:
+            bad_keywords.append(score_keyword_pair)
+
+    if business_info.price_score != 0:
+        score_keyword_pair = (business_info.price_score, business_info.price_keyword)
+        if business_info.price_score > 0:
+            good_keywords.append(score_keyword_pair)
+        else:
+            bad_keywords.append(score_keyword_pair)
+
+    if business_info.atmosphere_score != 0:
+        score_keyword_pair = (business_info.atmosphere_score, business_info.atmosphere_keyword)
+        if business_info.atmosphere_score > 0:
+            good_keywords.append(score_keyword_pair)
+        else:
+            bad_keywords.append(score_keyword_pair)
+
+    if business_info.facility_score != 0:
+        score_keyword_pair = (business_info.facility_score, business_info.facility_keyword)
+        if business_info.facility_score > 0:
+            good_keywords.append(score_keyword_pair)
+        else:
+            bad_keywords.append(score_keyword_pair)
+
+    # 긍정 및 부정 키워드 리스트를 점수 기준으로 정렬
+    good_keywords.sort(reverse=True, key=lambda x: x[0])  # 점수 높은 순으로 정렬
+    bad_keywords.sort(reverse=False, key=lambda x: x[0])  # 점수 낮은 순으로 정렬
 
     # 컬럼 레이아웃 정의
     col1, col2 = st.columns(2)
-    # && 동적 구현 + 시각화 추가 필요
+    
     # 첫 번째 컬럼에 긍정 키워드 추가
     with col1:
         st.subheader("Good")
-        st.write("- Tasty Pasta")
-        st.write("- Kind Waitress")
-        st.write("- Cozy Atmosphere")
+        if good_keywords:
+            for score, keyword in good_keywords:
+                st.write(f"- {keyword}")
+        else:
+            st.write()
+            #st.write("No positive feedback.")
 
     # 두 번째 컬럼에 부정 키워드 추가
     with col2:
         st.subheader("Bad")
-        st.write("- Awful Location")
-        st.write("- High Cost")
-        st.write("- No Parking")
+        if bad_keywords:
+            for score, keyword in bad_keywords:
+                st.write(f"- {keyword} ")
+        else:
+            st.write()
+            #st.write("No negative feedback.")
 
+
+    # 리뷰 스키마 확인
+    # 메인 스크립트 또는 특정 함수 내에서 호출
+    # if __name__ == "__main__":
+    #     print_review_table_schema()  # review 테이블의 스키마를 출력
 
     # 리뷰 데이터 가져오기 및 처리
-    business_id = business_info[-1]
+    print("--------")
+    business_id = int(business_info.business_id)
+    print("business_id :", business_id)
     reviews = get_reviews_for_business(business_id)
-    review_df = pd.DataFrame(reviews, columns=['text', 'user_id', 'stars', 'date', 'business_id'])
-    review_df['date'] = pd.to_datetime(review_df['date'])
-    review_df = review_df.sort_values(by='date', ascending=False)
+    print("Number of reviews:", len(reviews))
 
+    if reviews:
+        review_df = pd.DataFrame(reviews)
+        print(review_df.head())
+    else:
+        print("No reviews found for this business ID.")
+        st.write("No reviews found for this business ID.")
+        return
+    
     # 모든 사용자 정보 가져오기 및 DataFrame 생성
-    users = get_users_for_review(reviews[1])  # 모든 사용자 정보를 한 번에 가져옴
-    user_df = pd.DataFrame(users, columns=['user_id', 'average_stars_user', 'name', 'most_visited_region'])
+    user_ids = review_df.user_id.tolist()
+    print("user_ids : ", user_ids)
+    # Check if user_ids are correctly formatted as integers
+    print("User IDs are of type:", type(user_ids))
 
+    users = get_users_for_review(user_ids)  # 모든 사용자 정보를 한 번에 가져옴
+    print("users : ", users)
+    user_df = pd.DataFrame(users, columns=['user_id', 'average_stars_user', 'name', 'most_visited_region'])
+    print("user_df : ", user_df.head())
+    
     # 리뷰 데이터와 사용자 데이터 병합
     merged_df = pd.merge(review_df, user_df, on='user_id', how='left')
-
+    print("merged_df : ", merged_df.head())
+    merged_df['date'] = pd.to_datetime(merged_df['date']).dt.date
+    merged_df = merged_df.sort_values(by='date', ascending=False)
+    
     # 리뷰 데이터 시각적으로 표시
     st.subheader("Reviews...")
     st.markdown("---")
@@ -151,9 +240,9 @@ def display_review_keywords(business_info):
             with col1:
                 st.markdown(f"**{row['name']}**")
             with col2:
-                st.markdown(f"**{row['stars']}⭐**")
+                st.markdown(f"**⭐{row['stars']}**")
             with col3:
-                st.markdown(f"**{row['date'].strftime('%Y-%m-%d')}**")
+                st.markdown(f"**{row['date']}**")
             st.markdown(f"{row['text']}")
             st.markdown(f"📍 Most visited region: {row['most_visited_region']}")
             st.markdown("---")  # 각 리뷰 사이에 구분선 추가
@@ -213,5 +302,3 @@ else:
     else:
         # 결과 표시
         show_result(input_name)
-
-
