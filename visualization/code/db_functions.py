@@ -2,6 +2,7 @@
 
 import sqlite3
 from collections import namedtuple
+import pandas as pd
 
 ## DB 연결
 def get_connection(db_path='DB/ASAC_MAP.db'):
@@ -31,7 +32,17 @@ Business = namedtuple(
     'price_keyword',
     'service_keyword'
 ])
-## business table 정보 불러오기
+## 모든 business table 불러오기
+def fetch_business_list(db_path='DB/ASAC_MAP.db'):
+    conn = get_connection(db_path)
+    query = """
+    SELECT * FROM business
+    """
+    df = pd.read_sql(query, conn)
+    conn.close()
+    return df
+
+## business name에 해당하는 business table 정보 불러오기
 def find_business_in_db(business_name):
     # DB에서 business_name을 검색
     conn = get_connection()
@@ -61,7 +72,6 @@ Review = namedtuple('Review', [
     'user_id',
     'business_id',
     'stars',
-    'useful',
     'text',
     'date',
     'food',
@@ -105,6 +115,7 @@ User = namedtuple('User', [
     'log_visit_cnt'
 ])
 def get_users_for_review(user_ids):
+    print("user_ids in DB:", type(user_ids))
     if not user_ids:
         print("No user_ids provided, returning empty list.")
         return []
@@ -114,15 +125,19 @@ def get_users_for_review(user_ids):
         c = conn.cursor()
         # IN절에서 사용할 '?'의 개수는 user_ids의 길이에 맞추기
         format_strings = ','.join(['?']*len(user_ids))
+        #print("format_string : ", format_strings)
         query = f"SELECT * FROM user WHERE user_id IN ({format_strings})"
+        #print("query :", query)
         c.execute(query, user_ids)
         rows = c.fetchall()
         
         # User namedtuple을 사용하여 각 행을 변환
         users = [User(*row) for row in rows]
-        
+        #users =  pd.read_sql(f"SELECT * FROM user WHERE user_id in ({','.join(map(str, user_ids))})", conn).stack().tolist()
         print(f"Fetched {len(users)} users.")
+        #print("users :", users)
         return users
+    
     except Exception as e:
         print(f"Error fetching users: {e}")
         return []

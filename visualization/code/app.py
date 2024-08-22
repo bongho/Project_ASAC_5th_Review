@@ -2,11 +2,12 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from streamlit_folium import folium_static
+import streamlit.components.v1 as components
 import matplotlib.pyplot as plt
 import folium
 
 ## DB 관련 함수 import 
-from db_functions import find_business_in_db, get_reviews_for_business, get_users_for_review, print_review_table_schema
+from db_functions import fetch_business_list, find_business_in_db, get_reviews_for_business, get_users_for_review, print_review_table_schema
 
 
 ## 페이지 설정 함수
@@ -25,7 +26,10 @@ def show_main():
     st.title("Welcome to ASAC-MAP")
     # 프로젝트 설명
     st.write("YELP 데이터셋을 활용한 고객 탐색경험 향상을 위한 키워드 요약 프로젝트")
-    st.write("좌측에 가게 이름을 검색해주세요.")
+    st.write("아래에서 원하는 가게 이름을 좌측에 입력해주세요.")
+    business = fetch_business_list()
+    business_df = business[['name', 'category', 'region', 'review_count_biz', 'average_stars_biz']]
+    st.dataframe(business_df)
 
 
 ### show result 함수 구성요소 
@@ -64,7 +68,7 @@ def display_bar_chart(business_info):
     df_sorted = pd.concat([df_positive, df_negative])
 
     # 카테고리별 긍/부정 점수 시각화
-    fig, ax = plt.subplots(figsize=(10, 4))  # 그래프 크기 조절 (너비, 높이)
+    fig, ax = plt.subplots(figsize=(10, 3), constrained_layout=True)  # 높이를 6인치로 고정
     color_map = {'Positive': 'skyblue', 'Negative': 'orange'}
 
     # 카테고리별로 바 차트 그리기 및 점수 표시
@@ -87,6 +91,8 @@ def display_bar_chart(business_info):
 
     ax.set_ylabel('Scores')
     ax.set_title('Category Scores')
+
+    #plt.tight_layout()
 
     # 스트림릿으로 플롯 출력
     st.pyplot(fig)
@@ -175,7 +181,7 @@ def display_review_keywords(business_info):
     
     # 첫 번째 컬럼에 긍정 키워드 추가
     with col1:
-        st.subheader("Good")
+        st.subheader("Good Points 👍🏻")
         if good_keywords:
             for score, keyword in good_keywords:
                 st.write(f"- {keyword}")
@@ -185,7 +191,7 @@ def display_review_keywords(business_info):
 
     # 두 번째 컬럼에 부정 키워드 추가
     with col2:
-        st.subheader("Bad")
+        st.subheader("Bad Points 👎🏻")
         if bad_keywords:
             for score, keyword in bad_keywords:
                 st.write(f"- {keyword} ")
@@ -199,6 +205,23 @@ def display_review_keywords(business_info):
     # if __name__ == "__main__":
     #     print_review_table_schema()  # review 테이블의 스키마를 출력
 
+# 리뷰 별점 찍기
+def render_stars(rating):
+    full_stars = int(rating)  # 전체 별 개수
+    half_star = (rating - full_stars) >= 0.5  # 반 별이 필요한지
+    empty_stars = 5 - full_stars - int(half_star)  # 빈 별 개수
+    stars_html = '''
+    <div style="font-size: 15px; color: orange; text-shadow: 0px 0px 3px orange; margin-top: -10px; margin-left: -8px;">
+    '''
+    stars_html += '★' * full_stars
+    if half_star:
+        stars_html += '☆'
+    stars_html += '☆' * empty_stars
+    stars_html += '</div>'
+    return stars_html
+
+
+def display_reviews(business_info):
     # 리뷰 데이터 가져오기 및 처리
     print("--------")
     business_id = int(business_info.business_id)
@@ -206,45 +229,49 @@ def display_review_keywords(business_info):
     reviews = get_reviews_for_business(business_id)
     print("Number of reviews:", len(reviews))
 
-    if reviews:
-        review_df = pd.DataFrame(reviews)
-        print(review_df.head())
-    else:
-        print("No reviews found for this business ID.")
+    if not reviews:
         st.write("No reviews found for this business ID.")
         return
     
+    review_df = pd.DataFrame(reviews)
+    print(review_df.head())
+
     # 모든 사용자 정보 가져오기 및 DataFrame 생성
     user_ids = review_df.user_id.tolist()
-    print("user_ids : ", user_ids)
-    # Check if user_ids are correctly formatted as integers
-    print("User IDs are of type:", type(user_ids))
-
     users = get_users_for_review(user_ids)  # 모든 사용자 정보를 한 번에 가져옴
-    print("users : ", users)
-    user_df = pd.DataFrame(users, columns=['user_id', 'average_stars_user', 'name', 'most_visited_region'])
+    user_df = pd.DataFrame(users)
     print("user_df : ", user_df.head())
-    
+
     # 리뷰 데이터와 사용자 데이터 병합
     merged_df = pd.merge(review_df, user_df, on='user_id', how='left')
-    print("merged_df : ", merged_df.head())
     merged_df['date'] = pd.to_datetime(merged_df['date']).dt.date
     merged_df = merged_df.sort_values(by='date', ascending=False)
+    print("merged_df : ", merged_df.head())
     
     # 리뷰 데이터 시각적으로 표시
-    st.subheader("Reviews...")
     st.markdown("---")
+    st.subheader(f"Reviews ({len(reviews)}) 💭")
     for index, row in merged_df.iterrows():
         with st.container():
-            col1, col2, col3 = st.columns([2, 1, 2])
+            col1, col2, col3 = st.columns([0.5, 5, 1])
             with col1:
                 st.markdown(f"**{row['name']}**")
+                
             with col2:
-                st.markdown(f"**⭐{row['stars']}**")
+                # 별점 HTML 적용
+                stars_html = render_stars(row['stars'])
+                components.html(f"""
+                    <style>
+                    .fa-star {{ color: orange; }}
+                    .fa-star-half-alt {{ color: orange; }}
+                    .fa-star-o {{ color: grey; }}
+                    </style>
+                    {stars_html}
+                """, height=30)
             with col3:
                 st.markdown(f"**{row['date']}**")
+            #st.markdown(f"📍 {row['most_visited_region']}")
             st.markdown(f"{row['text']}")
-            st.markdown(f"📍 Most visited region: {row['most_visited_region']}")
             st.markdown("---")  # 각 리뷰 사이에 구분선 추가
 
 ## 결과 화면 표시
@@ -258,6 +285,7 @@ def show_result(business_name):
     st.title(f"{business_name}")
     display_store_info(business_info)
     display_review_keywords(business_info)
+    display_reviews(business_info)
 
 
         
