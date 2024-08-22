@@ -19,6 +19,12 @@ def setup_page():
     </style>
     """, unsafe_allow_html=True)
 
+# 세션 상태 초기화
+if 'selected_categories' not in st.session_state:
+    st.session_state.selected_categories = []
+
+if 'search_clicked' not in st.session_state:
+    st.session_state.search_clicked = False
 
 ## main 화면 표시 함수
 def show_main():
@@ -115,7 +121,10 @@ def display_additional_info(business_info):
         category_string = ' > '.join(eval(business_info.category)) if isinstance(business_info.category, str) else ' > '.join(business_info.category)
         st.write("⭐", round(business_info.average_stars_biz, 2))
         st.write("🍽️", category_string)
-        st.write("🏡", f"{business_info.address}, {business_info.region}")
+        if business_info.address == None:
+            st.write("🏡", f"{business_info.region}")
+        else : 
+            st.write("🏡", f"{business_info.address}, {business_info.region}")
 
 
 ## 리뷰 요약 표시
@@ -200,10 +209,18 @@ def display_review_keywords(business_info):
             #st.write("No negative feedback.")
 
 
-    # 리뷰 스키마 확인
-    # 메인 스크립트 또는 특정 함수 내에서 호출
-    # if __name__ == "__main__":
-    #     print_review_table_schema()  # review 테이블의 스키마를 출력
+
+    
+## 리뷰 필터링 기능(대분류 별)
+def filter_reviews_by_categories(merged_df, categories):
+
+    if categories:
+        filter_condition = merged_df[categories].apply(lambda x: x >= 1).any(axis=1)
+        filtered_df = merged_df[filter_condition]
+    else:
+        filtered_df = merged_df  # 카테고리가 선택되지 않으면 모든 리뷰 반환
+
+    return filtered_df
 
 # 리뷰 별점 찍기
 def render_stars(rating):
@@ -220,7 +237,7 @@ def render_stars(rating):
     stars_html += '</div>'
     return stars_html
 
-
+# 리뷰 시각화
 def display_reviews(business_info):
     # 리뷰 데이터 가져오기 및 처리
     print("--------")
@@ -248,10 +265,66 @@ def display_reviews(business_info):
     merged_df = merged_df.sort_values(by='date', ascending=False)
     print("merged_df : ", merged_df.head())
     
+
     # 리뷰 데이터 시각적으로 표시
     st.markdown("---")
     st.subheader(f"Reviews ({len(reviews)}) 💭")
-    for index, row in merged_df.iterrows():
+    
+    # 사용자에게 필터 선택 옵션 제공
+    with st.container(height=250) :
+        col1, col2, col3 = st.columns([2, 0.5, 0.5])
+        with col1:
+            st.markdown(
+                """
+                <style>
+                .lightgray-bg {
+                    background-color: lightgray;
+                    border-radius: 5px;
+                }
+                </style>
+                """, unsafe_allow_html=True
+            )
+            st.markdown('<div class="lightgray-bg">', unsafe_allow_html=True)
+            # 1. 카테고리 필터
+            categories = st.multiselect(
+                "카테고리를 선택하세요.",
+                ['food', 'service', 'atmosphere', 'facility', 'price', 'others'],
+                default=st.session_state.selected_categories
+            )
+            # 2. 별점 필터
+            st.write("별점을 선택하세요.")
+            cols = st.columns(6)
+            star_ratings = []
+            for i, col in enumerate(cols):
+                if col.checkbox(f"{i} 점", key=f"star_{i}"):
+                    star_ratings.append(i)
+
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        with col3 :
+            st.write("")
+            st.write("")
+            on = st.toggle("Local Reviews")
+            if on :
+                st.write(f'{business_info.region} 지역 3회 이상 방문객 리뷰 확인')
+
+
+    # 선택된 카테고리 상태를 세션에 저장 및 필터링 실행
+    if categories != st.session_state.selected_categories:
+        st.session_state.selected_categories = categories
+        st.experimental_rerun()  # 상태가 업데이트된 후 즉시 다시 실행하여 두 번 동작 방지
+
+
+    print("categories : ", categories)  # 선택된 카테고리 출력
+    
+    # 선택된 카테고리에 맞게 리뷰 필터링
+    filtered_df = filter_reviews_by_categories(merged_df, categories)
+
+    # 선택된 카테고리에 해당하는 리뷰 갯수 출력
+    st.write(f'{len(filtered_df)} 개의 리뷰를 찾았습니다.')
+
+    for index, row in filtered_df.iterrows():
+        #print("filtered_df : ", filtered_df.head())
         with st.container():
             col1, col2, col3 = st.columns([0.5, 5, 1])
             with col1:
@@ -273,6 +346,8 @@ def display_reviews(business_info):
             #st.markdown(f"📍 {row['most_visited_region']}")
             st.markdown(f"{row['text']}")
             st.markdown("---")  # 각 리뷰 사이에 구분선 추가
+
+
 
 ## 결과 화면 표시
 def show_result(business_name):
@@ -314,19 +389,26 @@ with st.sidebar :
     # 검색창 (* business_name 기준)
     input_name = st.text_input("Search...")
 
-    btn_submit = st.button("Go to Review", key='submit_btn', disabled=(input_name is False))
+    #btn_submit = st.button("Go to Review", key='submit_btn', disabled=(input_name is False))
 
+    # 버튼 클릭 시 검색 상태 유지
+    if st.button("Go to Review", key='submit_btn'):
+        st.session_state.search_clicked = True
+        st.session_state.business_name = input_name
 
         
 ####### main page #########
-if not btn_submit:
+# 메인 페이지 로직
+if not st.session_state.search_clicked or not st.session_state.business_name:
     show_main()
-else:
-    ## submit 버튼 onclick 이벤트
+## submit 버튼 onclick 이벤트
+else: 
 
+    business_name = st.session_state.business_name
+    business_info = find_business_in_db(business_name)
+    
     # @@ 예외처리) 입력이 없을 경우 - 에러 메시지
-    if not input_name:
-        st.error("Please enter the store name.")
+    if not business_info:
+        st.error("해당하는 가게가 없습니다. 가게 이름을 확인해주세요.")
     else:
-        # 결과 표시
-        show_result(input_name)
+        show_result(st.session_state.business_name)
