@@ -1,10 +1,10 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from streamlit_folium import folium_static
 import streamlit.components.v1 as components
 import matplotlib.pyplot as plt
-import folium
+import matplotlib.colors as mcolors
+
 
 ## DB 관련 함수 import 
 from db_functions import fetch_business_list, find_business_in_db, get_reviews_for_business, get_users_for_review, print_review_table_schema
@@ -31,26 +31,18 @@ def show_main():
     # 페이지 타이틀 설정
     st.title("Welcome to ASAC-MAP")
     # 프로젝트 설명
-    st.write("YELP 데이터셋을 활용한 고객 탐색경험 향상을 위한 키워드 요약 프로젝트")
+    st.write("YELP 데이터셋을 활용한 고객 탐색경험 향상을 위한 키워드 요약 프로젝트입니다.")
     st.write("아래에서 원하는 가게 이름을 좌측에 입력해주세요.")
     business = fetch_business_list()
     business_df = business[['name', 'category', 'region', 'review_count_biz', 'average_stars_biz']]
     st.dataframe(business_df)
+    st.caption("© 2024 ASAC-5th-떡잎마을 방범대. All rights reserved. Unauthorized use prohibited.")
 
-
-### show result 함수 구성요소 
-# ## 지도 표시
-# def display_map(business_info):
-#     map_center = [business_info[1], business_info[2]]
-#     m = folium.Map(location=map_center, zoom_start=15, tiles='cartodbpositron', width='90%', height=200)
-#     folium.Marker(location=map_center, popup=f"{business_info[0]}, {business_info[3]}", tooltip="Click for more info").add_to(m)
-#     folium_static(m, height=150)
 
 
 ## 대분류 긍/부정 그래프
 def display_bar_chart(business_info):
-    
-    # namedtuple에서 점수 정보를 가져옴
+    # 점수 정보를 가져옴
     data = {
         'Category': ['Service', 'Others', 'Food', 'Price', 'Atmosphere', 'Facilities'],
         'Score': [
@@ -60,49 +52,74 @@ def display_bar_chart(business_info):
             business_info.price_score,
             business_info.atmosphere_score,
             business_info.facility_score
+        ],
+        'Keyword': [
+            business_info.service_keyword,
+            business_info.others_keyword,
+            business_info.food_keyword,
+            business_info.price_keyword,
+            business_info.atmosphere_keyword,
+            business_info.facility_keyword
         ]
     }
 
-    # 점수에 따라 Positive/Negative 분류
     df = pd.DataFrame(data)
-    df['Type'] = df['Score'].apply(lambda x: 'Positive' if x > 0 else 'Negative')
+
+    # 점수를 문자열로 변환하고 색상 지정하는 함수
+    def score_to_text_and_color(row):
+        score = row['Score']
+        if score >= 0.80:
+            return 'Excellent', '#0A306D'
+        elif score >= 0.40:
+            return 'Good', '#1565C0'  #800
+        elif score > 0:
+            return 'Not Bad', '#64B5F6'   #300
+        elif score == 0:
+            if row['Keyword'] == 'none':
+                return 'No Data', '#90CAF9'  #200
+            else:
+                return 'Not Bad', '#90CAF9'
+        elif score > -0.60:
+            return 'Fair', '#FFB74D'  
+        else:
+            return 'Poor', '#EF6C00'
+
+    # 문자열 및 색상 추가
+    df[['Label', 'Color']] = df.apply(score_to_text_and_color, axis=1, result_type='expand')
 
     # 긍정 및 부정 점수를 각각 정렬(긍정->내림차순 / 부정->오름차순)
-    df_positive = df[df['Type'] == 'Positive'].sort_values(by='Score', ascending=False)
-    df_negative = df[df['Type'] == 'Negative'].sort_values(by='Score', ascending=False)
+    df_positive = df[df['Score'] > 0].sort_values(by='Score', ascending=False)
+    df_negative = df[df['Score'] <= 0].sort_values(by='Score', ascending=False)
 
     # 데이터프레임 재결합
     df_sorted = pd.concat([df_positive, df_negative])
 
     # 카테고리별 긍/부정 점수 시각화
-    fig, ax = plt.subplots(figsize=(10, 3), constrained_layout=True)  # 높이를 6인치로 고정
-    color_map = {'Positive': 'skyblue', 'Negative': 'orange'}
+    fig, ax = plt.subplots(figsize=(10, 3), constrained_layout=True)
 
-    # 카테고리별로 바 차트 그리기 및 점수 표시
     for index, row in df_sorted.iterrows():
-        bar = ax.bar(row['Category'], row['Score'], color=color_map[row['Type']], width=0.4)
-        # 각 막대 위에 점수 표시
+        bar = ax.bar(row['Category'], row['Score'], color=row['Color'], width=0.4)
+        # 각 막대 위에 문자열 표시
         ax.text(bar[0].get_x() + bar[0].get_width() / 2, 
                 bar[0].get_height(), 
-                f'{row["Score"]:.2f}', 
+                f'{row["Label"]}', 
                 ha='center', 
                 va='bottom' if row['Score'] < 0 else 'bottom', 
                 color='black')
-    
+
     # 중앙선 추가 및 바깥선 제거
     ax.axhline(0, color='lightgrey', linewidth=0.8)
-    ax.spines['top'].set_visible(False)  # 상단 바깥선 제거
-    ax.spines['right'].set_visible(False)  # 우측 바깥선 제거
-    ax.spines['left'].set_visible(False)  # 좌측 바깥선 제거
-    ax.spines['bottom'].set_visible(False)  # 하단 바깥선 제거
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
 
     ax.set_ylabel('Scores')
-    ax.set_title('Category Scores')
-
-    #plt.tight_layout()
+    ax.set_title('Summary of Ratings by Category')
 
     # 스트림릿으로 플롯 출력
     st.pyplot(fig)
+
 
     
 ## 가게 정보 표시
@@ -115,6 +132,8 @@ def display_store_info(business_info):
             # @@ 예외처리) 가게 리뷰가 10개 이상인 경우에만 차트 생성
         if business_info.review_count_biz >= 10:
             display_bar_chart(business_info)
+        else :
+            st.info("Summary available after 10+ reviews.")
         # 가게정보 표시
         display_additional_info(business_info)
 
@@ -229,7 +248,7 @@ def filter_reviews_by_stars(merged_df, star_ratings):
 def filter_local_reviews(merged_df, local_on, business_info):
     """Filters for local reviews if the toggle is on."""
     if local_on:
-        return merged_df[(merged_df['most_visited_region'] == business_info.region) & (merged_df['visit_cnt'] >= 3)]
+        return merged_df[(merged_df['most_visited_region'] == business_info.region) & (merged_df['visit_cnt'] >= 2)]
     return merged_df
 
 ## 리뷰 별점 찍기
@@ -307,7 +326,7 @@ def display_reviews(business_info):
                 """, unsafe_allow_html=True)
 
             st.markdown('<div class="lightgray-bg">', unsafe_allow_html=True)
-            st.caption("카테고리를 선택하세요.")
+            st.caption("Select categories.")
             categories = st.multiselect(
                 "",
                 ['food', 'service', 'atmosphere', 'facility', 'price', 'others'],
@@ -315,11 +334,11 @@ def display_reviews(business_info):
             )
             st.markdown('</div>', unsafe_allow_html=True)  # div 종료 태그
             # 2. 별점 필터
-            st.caption("별점을 선택하세요.")
+            st.caption("Select star ratings.")
             cols = st.columns(6)
             star_ratings = []
             for i, col in enumerate(cols):
-                if col.checkbox(f"{i} 점", key=f"star_{i}"):
+                if col.checkbox(f"{i} stars", key=f"star_{i}"):
                     star_ratings.append(i)
 
             st.markdown('</div>', unsafe_allow_html=True)
@@ -330,8 +349,8 @@ def display_reviews(business_info):
             st.write("")
             local_on = st.toggle("Local Reviews", value=st.session_state.local_reviews)
             if local_on :
-                st.caption(f'{business_info.region} 지역')
-                st.caption(f'3회 이상 방문객 리뷰 확인')
+                st.caption(f'Reviews from visitors with over three visits to')
+                st.caption(f'{business_info.region}')
 
     # 상태 업데이트 및 재실행
     if categories != st.session_state.selected_categories or star_ratings != st.session_state.selected_stars or local_on != st.session_state.local_reviews:
@@ -348,12 +367,12 @@ def display_reviews(business_info):
     filtered_df = filter_local_reviews(filtered_df, local_on, business_info)
     
     # 선택된 카테고리에 해당하는 리뷰 갯수 출력
-    st.write(f'{len(filtered_df)} 개의 리뷰를 찾았습니다.')
+    st.write(f'Found {len(filtered_df)} reviews.')
 
     for index, row in filtered_df.iterrows():
         #print("filtered_df : ", filtered_df.head())
         with st.container():
-            col1, col2, col3 = st.columns([0.5, 5, 1])
+            col1, col2, col3 = st.columns([0.8, 5, 1])
             with col1:
                 st.markdown(f"**{row['name']}**")
                 
@@ -381,18 +400,15 @@ def show_result(business_name):
     business_info = find_business_in_db(business_name)
     # @@ 예외처리) 가게 이름이 DB에 없을 경우 - 가게명 없음 error 메세지
     if not business_info:
-        st.error("해당하는 가게가 없습니다. 가게 이름을 확인해주세요.")
+        st.error("No such store found. Please check the store name.")
         return
 
     st.title(f"{business_name}")
     display_store_info(business_info)
     
-    # @@ 예외처리) 가게 리뷰가 10개 미만인 경우 - 수집중 안내
-    if business_info.review_count_biz < 10:
-        st.info("가게 리뷰 수집중입니다.")
-        return
-    
-    display_review_keywords(business_info)
+    # @@ 예외처리) 가게 리뷰가 10개 미만인 경우 - 키워드 요약 미제공
+    if business_info.review_count_biz >= 10:
+        display_review_keywords(business_info)
     display_reviews(business_info)
 
 
@@ -401,7 +417,7 @@ def show_result(business_name):
 ###### 페이지 설정 변경
 st.set_page_config(
     page_title="ASAC_5th_Review",
-    page_icon="🛵",
+    page_icon="🍽️",
     layout="wide",  # 'wide' layout 사용
 )
 ####### sidebar #########
@@ -418,7 +434,7 @@ st.markdown("""
 # 앱 실행
 with st.sidebar :
     # 사이드바에 타이틀 추가
-    st.sidebar.title("ASAC-MAP")
+    st.sidebar.title("ASAC-MAP 🍽️")
     # 검색창 (* business_name 기준)
     input_name = st.text_input("Search...")
 
@@ -428,6 +444,29 @@ with st.sidebar :
     if st.button("Go to Review", key='submit_btn'):
         st.session_state.search_clicked = True
         st.session_state.business_name = input_name
+
+    # 팀 소개
+    st.markdown("---")  # 구분선 추가
+    st.markdown("""
+    ### Team 떡잎마을 방범대      
+    - **Team Members**
+        - [박훈](https://github.com/daphoon) 
+            - Sentimental Analytics
+            - Keyword Extraction
+        - [염혜지](https://github.com/yeomsta)
+            - Keyword Extraction
+        - [이세희](https://github.com/2-sehee)
+            - Keyword Extraction
+            - Streamlit Implementation
+        - [장은지](https://github.com/Euunz2)
+            - Keyword Extraction
+            - Model Evaluation
+    """)
+
+    # GitHub 링크 버튼
+    #st.markdown("### GitHub Repository")
+    st.link_button('Visit our GitHub', 'https://github.com/bongho/Project_ASAC_5th_Review')
+
 
         
 ####### main page #########
@@ -441,6 +480,6 @@ else:
     
     # @@ 예외처리) 입력이 없을 경우 - 에러 메시지
     if not business_info:
-        st.error("해당하는 가게가 없습니다. 가게 이름을 확인해주세요.")
+        st.error("No such store found. Please check the store name.")
     else:
         show_result(st.session_state.business_name)
