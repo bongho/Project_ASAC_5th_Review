@@ -248,7 +248,7 @@ def filter_reviews_by_stars(merged_df, star_ratings):
 def filter_local_reviews(merged_df, local_on, business_info):
     """Filters for local reviews if the toggle is on."""
     if local_on:
-        return merged_df[(merged_df['most_visited_region'] == business_info.region) & (merged_df['visit_cnt'] >= 2)]
+        return merged_df[(merged_df['most_visited_region'] == business_info.region) & (merged_df['visit_cnt'] >= 3)]
     return merged_df
 
 ## 리뷰 별점 찍기
